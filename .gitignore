@@ -1,0 +1,7 @@
+
+*.ppm
+data/.DS_Store
+*.npy
+*.pyc
+data/raw_GTSDB/gt.txt
+data/raw_GTSDB/ReadMe.txt
