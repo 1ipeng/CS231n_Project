@@ -40,10 +40,6 @@ def cwh_to_xy(box_cwh):
 	xy = [x1, y1, x2, y2]
 	return xy
 
-def draw_box_cwh(image, box_cwh):
-	box_xy = cwh_to_xy(box_cwh)
-	draw_boxes_xy(image, box_xy)
-
 def resize_box_xy(orig_hw, resized_hw, box_xy):
 	# Resize box
 	# orig_h, orig_w: orginal image size
@@ -61,7 +57,7 @@ def resize_box_xy(orig_hw, resized_hw, box_xy):
 	resized_xy = [resized_x1, resized_y1, resized_x2, resized_y2]
 	return resized_xy
 
-'''
+
 def normalize_box_cwh(image_hw, num_grid, box_cwh):
 	# Normalize box height and weight to be 0-1
 	image_h, image_w = image_hw
@@ -76,7 +72,9 @@ def normalize_box_cwh(image_hw, num_grid, box_cwh):
 	normalized_xc = 1. * (xc - col * grid_w) / grid_w
 	normalized_yc = 1. * (yc - row * grid_h) / grid_h
 	normalized_cwh = [normalized_xc, normalized_yc, normalized_w, normalized_h]
-	return normalized_cwh
+	positon = [row, col]
+	return normalized_cwh, positon
+
 
 def denormalize_box_cwh(image_hw, num_grid, norm_box_cwh, grid):
 	image_h, image_w = image_hw 
@@ -91,7 +89,6 @@ def denormalize_box_cwh(image_hw, num_grid, norm_box_cwh, grid):
 	yc = normalized_yc * grid_h + row * grid_h
 	cwh = [xc, yc, box_w, box_h]
 	return cwh
-'''
 
 def get_image_name(i):
 	if i < 10:
