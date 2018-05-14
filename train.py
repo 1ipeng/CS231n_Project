@@ -1,41 +1,34 @@
 import numpy as np
-#test
 import torch
 import torch.optim as optim
 import os
 from tqdm import trange
 import model.net as net
-# from model.data_loader import DataLoader
+from model.data_loader import DataLoader
 # from evaluate import evaluate
 
 def train(model, optimizer, loss_fn, data_iterator, metrics, params, num_steps):
-    """Train the model
+    """
+    Train the model
 
     Args:
         model: (torch.nn.Module) the neural network
         optimizer: (torch.optim) optimizer for parameters of model
-        loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
-        data_iterator: (generator) a generator that generates batches of data and labels
-        metrics: (dict) a dictionary of functions that compute a metric using the output and labels of each batch
+        loss_fn: a function that takes batch_output and batch_targets and computes the loss for the batch
+        data_iterator: (generator) a generator that generates batches of data and targets
+        metrics: (dict) a dictionary of functions that compute a metric using the output and targets of each batch
         params: (Params) hyperparameters
     """
 
     # set model to training mode
     model.train()
-
-    # summary for current training loop and a running average object for loss
-    summ = []
-    loss_avg = utils.RunningAverage()
     
     # Use tqdm for progress bar
     t = trange(num_steps) 
     for i in t:
-        # fetch the next training batch
-        train_batch, labels_batch = next(data_iterator)
-
-        # compute model output and loss
-        output_batch = model(train_batch)
-        loss = loss_fn(output_batch, labels_batch)
+        x_batch, y_batch = next(data_iterator)
+        y_pred_batch = model(x_batch)
+        loss = loss_fn(y_pred_batch, y_batch)
 
         # clear previous gradients, compute gradients of all variables wrt loss
         optimizer.zero_grad()
@@ -44,26 +37,24 @@ def train(model, optimizer, loss_fn, data_iterator, metrics, params, num_steps):
         # performs updates using calculated gradients
         optimizer.step()
 
+        t.set_postfix(loss='{:05.3f}'.format(loss.data[0]))
+
         # Evaluate summaries only once in a while
-        if i % params.save_summary_steps == 0:
-            # extract data from torch Variable, move to cpu, convert to numpy arrays
-            output_batch = output_batch.data.cpu().numpy()
-            labels_batch = labels_batch.data.cpu().numpy()
+        # if i % params.save_summary_steps == 0:
+        #     # extract data from torch Variable, move to cpu, convert to numpy arrays
+        #     y_pred_batch = y_pred_batch.data.cpu().numpy()
+        #     y_batch = y_batch.data.cpu().numpy()
 
-            # compute all metrics on this batch
-            summary_batch = {metric:metrics[metric](output_batch, labels_batch)
-                             for metric in metrics}
-            summary_batch['loss'] = loss.data[0]
-            summ.append(summary_batch)
-
-        # update the average loss
-        loss_avg.update(loss.data[0])
-        t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
+        #     # compute all metrics on this batch
+        #     summary_batch = {metric:metrics[metric](y_pred_batch, y_batch)
+        #                      for metric in metrics}
+        #     summary_batch['loss'] = loss.data[0]
+        #     summ.append(summary_batch)
 
     # compute mean of all metrics in summary
-    metrics_mean = {metric:np.mean([x[metric] for x in summ]) for metric in summ[0]} 
-    metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
-    logging.info("- Train metrics: " + metrics_string)
+    # metrics_mean = {metric:np.mean([x[metric] for x in summ]) for metric in summ[0]} 
+    # metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
+    # logging.info("- Train metrics: " + metrics_string)
     
 
 def train_and_evaluate(model, train_data, val_data, optimizer, loss_fn, metrics, params, model_dir, restore_file=None):
@@ -71,11 +62,11 @@ def train_and_evaluate(model, train_data, val_data, optimizer, loss_fn, metrics,
 
     Args:
         model: (torch.nn.Module) the neural network
-        train_data: (dict) training data with keys 'data' and 'labels'
-        val_data: (dict) validaion data with keys 'data' and 'labels'
+        train_data: (dict) training data with keys 'data' and 'targets'
+        val_data: (dict) validaion data with keys 'data' and 'targets'
         optimizer: (torch.optim) optimizer for parameters of model
-        loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
-        metrics: (dict) a dictionary of functions that compute a metric using the output and labels of each batch
+        loss_fn: a function that takes batch_output and batch_targets and computes the loss for the batch
+        metrics: (dict) a dictionary of functions that compute a metric using the output and targets of each batch
         params: (Params) hyperparameters
         model_dir: (string) directory containing config, weights and log
         restore_file: (string) optional- name of file to restore from (without its extension .pth.tar)

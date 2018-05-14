@@ -16,6 +16,20 @@ def draw_boxes_xy(image, boxes_xy):
 		box = patches.Rectangle((x1, y1), w, h, linewidth=1, edgecolor='r', facecolor='none')
 		ax.add_patch(box)
 
+def draw_boxes_output(image, y):
+	# y: shape (num_grid, num_grid, 5)
+	mask = (y[:, :, 0] > 0.5)
+	indices = np.argwhere(y[:, :, 0] > 0.5)
+	boxes_cwh = y[mask, 1:5]
+	image_hw = image.shape[0:2]
+	num_grid = y.shape[0]
+	boxes_xy = np.zeros_like(boxes_cwh)
+	
+	for i in range(boxes_cwh.shape[0]):
+		box_cwh = denormalize_box_cwh(image_hw, num_grid, boxes_cwh[i], indices[i])
+		boxes_xy[i] = cwh_to_xy(box_cwh)
+	draw_boxes_xy(image, boxes_xy)
+
 def xy_to_cwh(box_xy):
 	# box_xy [x1, y1, x2, y2]
 	# Given top left point and right bottom point coordinates
@@ -39,6 +53,30 @@ def cwh_to_xy(box_cwh):
 	y2 = yc + h / 2
 	xy = [x1, y1, x2, y2]
 	return xy
+
+def xy_to_cwh_vectorize(boxes_xy):
+	# boxes_xy: shape (N, 4), [[x1, y1, x2, y2], ...]
+	# Given top left point and right bottom point coordinates
+	# Compute center coordinates, height and weight
+	# Return boxes_cwh: shape (N, 4) [[xc, yc, w, h], ...]
+	boxes_cwh = np.zeros_like(boxes_xy)
+	boxes_cwh[:, 0] = (boxes_xy[:, 0] + boxes_xy[:, 2]) / 2
+	boxes_cwh[:, 1] = (boxes_xy[:, 1] + boxes_xy[:, 3]) / 2
+	boxes_cwh[:, 2] = boxes_xy[:, 2] - boxes_xy[:, 0]
+	boxes_cwh[:, 3] = boxes_xy[:, 3] - boxes_xy[:, 1]
+	return boxes_cwh
+
+def cwh_to_xy_vectorize(boxes_cwh):
+	# boxes_cwh: shape (N, 4) [[xc, yc, w, h], ...]
+	# Given top left point and right bottom point coordinates
+	# Compute center coordinates, height and weight
+	# boxes_xy: shape (N, 4), [[x1, y1, x2, y2], ...]
+	boxes_xy = zeros_like(boxes_cwh)
+	boxes_xy[:, 0] = boxes_cwh[:, 0] - boxes_cwh[:, 2] / 2
+	boxes_xy[:, 1] = boxes_cwh[:, 1] - boxes_cwh[:, 3] / 2
+	boxes_xy[:, 2] = boxes_cwh[:, 0] + boxes_cwh[:, 2] / 2
+	boxes_xy[:, 3] = boxes_cwh[:, 1] + boxes_cwh[:, 3] / 2
+	return boxes_xy
 
 def resize_box_xy(orig_hw, resized_hw, box_xy):
 	# Resize box
@@ -74,7 +112,6 @@ def normalize_box_cwh(image_hw, num_grid, box_cwh):
 	normalized_cwh = [normalized_xc, normalized_yc, normalized_w, normalized_h]
 	positon = [row, col]
 	return normalized_cwh, positon
-
 
 def denormalize_box_cwh(image_hw, num_grid, norm_box_cwh, grid):
 	image_h, image_w = image_hw 
