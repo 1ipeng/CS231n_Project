@@ -5,3 +5,4 @@ data/.DS_Store
 *.pyc
 data/raw_GTSDB/gt.txt
 data/raw_GTSDB/ReadMe.txt
+*.icloud
