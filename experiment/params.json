@@ -7,5 +7,6 @@
     "num_workers": 4,
     "l_coord": 5,
     "l_noobj": 0.5,
-    "B": 2
+    "B": 2,
+    "image_resize": 224
 }

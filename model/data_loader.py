@@ -39,8 +39,8 @@ def fetch_dataloader(types, data_dir, params):
 
     for split in ['train', 'val', 'test']:
         if split in types:
-            x_dir = data_dir + 'X_' + split + '.npy'
-            y_dir = data_dir + 'Y_' + split + '.npy'
+            x_dir = os.path.join(data_dir, "X_{}.npy".format(split))
+            y_dir = os.path.join(data_dir, "Y_{}.npy".format(split))
 
             dl = DataLoader(DetectionDataset(x_dir, y_dir, transformer), batch_size=params.batch_size, shuffle=True, 
                             num_workers=params.num_workers, pin_memory=params.cuda)
