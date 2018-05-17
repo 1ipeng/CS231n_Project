@@ -239,7 +239,7 @@ def yolo_v1_loss(y_pred, y_true, l_coord, l_noobj):
         target_true_wh = obj_boxes_true[:, 0, 2:4]
         obj_loss_wh = torch.sum((torch.sqrt(target_pred_wh) - torch.sqrt(target_true_wh))**2)
 
-    loss = l_coord * obj_loss_xy + l_coord * obj_loss_wh + obj_loss_pc + l_noobj * noobj_loss_pc
+    loss = 1./ batch_size * (l_coord * obj_loss_xy + l_coord * obj_loss_wh + obj_loss_pc + l_noobj * noobj_loss_pc)
 
     # print('v1:',noobj_loss_pc, obj_loss_xy, obj_loss_wh, obj_loss_pc)
     return loss

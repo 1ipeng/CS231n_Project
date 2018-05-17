@@ -7,14 +7,38 @@ import utils
 import matplotlib.pyplot as plt
 
 params = utils.Params('./experiment/params.json')
-data_dir = './data/tiny_GTSDB/'
-loader_train = fetch_dataloader(['train'], data_dir, params)['train']
+params.cuda = torch.cuda.is_available()
+if params.cuda:
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
+
+data_dir = './data/GTSDB/'
+data_loader = fetch_dataloader(['train', 'val', 'test'], data_dir, params)
+loader_train = data_loader['train']
+loader_val = data_loader['val']
 weights_dir = './darknet19_weights.npz'
-device = torch.device('cpu')
 dtype = torch.float32
+
+train_losses = []
+val_losses = []
+
+def check_val_loss(loader, model, loss_fn): 
+    loss = 0
+    model.eval()
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device=device, dtype=dtype)
+            y = y.to(device=device, dtype=dtype)
+            y_pred = model(x)
+            minibatch_loss = loss_fn(y_pred, y, params.l_coord, params.l_noobj)
+            loss += minibatch_loss
+    return loss
+
 
 def simple_train(model, optimizer, loss_fn, epochs=10):
     model = model.to(device=device)  # move the model parameters to CPU/GPU
+
     for e in range(epochs):
         for t, (x, y) in enumerate(loader_train):
             model.train()  # put model to training mode
@@ -32,7 +56,9 @@ def simple_train(model, optimizer, loss_fn, epochs=10):
             # Actually update the parameters of the model using the gradients
             # computed by the backwards pass.
             optimizer.step()
-            print(e, loss)
+
+            print(t, 'loss:', loss)
+
     return model
 
 def simple_predict(model):
@@ -53,8 +79,8 @@ def simple_predict(model):
         plt.show()
         break
 
-model = darknet(params)
+model = darknet(params).cuda() if params.cuda else darknet(params)
 # model.load_weights(weights_dir, 18)
 optimizer = optim.Adam(model.parameters(), lr=params.learning_rate)
 simple_train(model, optimizer, yolo_v1_loss, params.num_epochs)
-simple_predict(model)
+# simple_predict(model)
