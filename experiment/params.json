@@ -2,7 +2,7 @@
     "learning_rate": 1e-3,
     "batch_size": 32,
     "num_epochs": 50,
-    "cuda":false,
+    "cuda:":true,
     "save_summary_steps": 100,
     "num_workers": 4,
     "l_coord": 5,

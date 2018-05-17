@@ -178,9 +178,11 @@ def compute_iou(boxes_pred, boxes_true):
     
     return iou
 
-def yolo_v1_loss(y_pred, y_true, l_coord, l_noobj):
+def yolo_v1_loss(y_pred, y_true, params):
     # y_pred (batch_size, num_grid, num_grid, B * 5)
     # y_true (batch_size, num_grid, num_grid, 5)
+    l_coord = params.l_coord
+    l_noobj = params.l_noobj
     batch_size, num_grid, _, _ = y_true.shape
     B = y_pred.shape[3] / 5
 
@@ -196,7 +198,8 @@ def yolo_v1_loss(y_pred, y_true, l_coord, l_noobj):
     obj_loss_wh = 0
     obj_loss_pc = 0
     noobj_loss_pc = 0
-    
+    avg_iou = 0
+
     # Compute loss for boxes in grid cells containing no object
     if len(y_pred[noobj_mask]) != 0:
         noobj_y_pred_pc = y_pred[noobj_mask][:, :, 0]
@@ -208,12 +211,14 @@ def yolo_v1_loss(y_pred, y_true, l_coord, l_noobj):
         obj_boxes_true = y_true[obj_mask][:, :, 1:5]  #(num_objects, 1, 4)
         obj_boxes_pred = y_pred[obj_mask][:, :, 1:5]  #(num_objects, B, 4)
         obj_pred_pc = y_pred[obj_mask][:, :, 0]  #(num_objects, B)
+        num_objects = obj_boxes_true.shape[0]
 
         # Compute iou between true boxes and B predicted boxes  
         iou = compute_iou(obj_boxes_pred, obj_boxes_true)  #(num_objects, B)
 
         # Find the target boxes responsible for prediction (boxes with max iou)
         max_iou, max_iou_indices = torch.max(iou, dim=1)
+        avg_iou = torch.mean(max_iou)
 
         is_target = torch.zeros(iou.shape)
         is_target[range(iou.shape[0]), max_iou_indices] = 1
