@@ -89,7 +89,7 @@ def train_and_evaluate(model, train_dataloader, val_dataloader, optimizer, loss_
     if restore_file is not None:
         restore_path = os.path.join(model_dir, restore_file + '.pth.tar')
         print("Restoring parameters from {}".format(restore_path))
-        utils.load_checkpoint(restore_path, model, optimizer)
+        utils.load_checkpoint(restore_path, model, params, optimizer)
     
     train_losses = []
     val_losses = []

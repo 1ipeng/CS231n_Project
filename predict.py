@@ -9,7 +9,7 @@ transformer = transforms.Compose([transforms.ToTensor()])
 def predict(model, file_path, params, model_dir, restore_file):
 	restore_path = os.path.join(model_dir, restore_file + '.pth.tar')
 	print("Restoring parameters from {}".format(restore_path))
-	utils.load_checkpoint(restore_path, model)
+	utils.load_checkpoint(restore_path, model, params)
 	
 	image = plt.imread(file_path)
 	resized_image = imresize(image, (params.image_resize, params.image_resize))

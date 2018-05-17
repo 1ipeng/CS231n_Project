@@ -54,7 +54,8 @@ for i in trange(dataset_size):
 X = np.array(X)
 Y = np.array(Y)
 
-permutation = np.random.permutation(dataset_size)
+# permutation = np.random.permutation(dataset_size)
+permutation = np.arange(dataset)
 train = permutation[0:train_size]
 val = permutation[train_size : train_size + val_size]
 test = permutation[train_size + val_size:train_size + val_size + test_size]
