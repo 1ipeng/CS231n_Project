@@ -55,7 +55,7 @@ X = np.array(X)
 Y = np.array(Y)
 
 # permutation = np.random.permutation(dataset_size)
-permutation = np.arange(dataset)
+permutation = np.arange(dataset_size)
 train = permutation[0:train_size]
 val = permutation[train_size : train_size + val_size]
 test = permutation[train_size + val_size:train_size + val_size + test_size]
