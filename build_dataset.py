@@ -1,20 +1,22 @@
 # Build dataset
 import numpy as np
 from scipy.misc import imresize
-from util import *
+import utils
 import random
 import os
 from tqdm import trange
-import argparse
+import matplotlib.pyplot as plt
 
 data_dir = './data/raw_GTSDB/'
 output_dir = './data/GTSDB/'
 image_resize = 224
 num_grid = 7
 
+dataset_size = 900
 train_size = 700
 val_size = 100
 test_size = 100
+
 
 raw_data = np.loadtxt(data_dir + 'gt.txt', delimiter = ';', dtype= str)
 image_names = raw_data[:, 0]
@@ -22,11 +24,11 @@ box_coords = raw_data[:, 1:5].astype(float)
 
 X = []
 Y = []
-conflict_count = np.zeros(900)
+conflict_count = np.zeros(dataset_size)
 
-for i in trange(900):
+for i in trange(dataset_size):
 	# Load and resize ith image
-	name = get_image_name(i)
+	name = utils.get_image_name(i)
 	image = plt.imread(data_dir + name)
 	resized_image = imresize(image, (image_resize, image_resize))
 	X.append(resized_image)
@@ -39,9 +41,9 @@ for i in trange(900):
 	
 	for index in indices:
 		box_xy = box_coords[index]
-		resized_box_xy = resize_box_xy(orig_hw, resized_hw, box_xy)
-		box_cwh = xy_to_cwh(resized_box_xy)
-		normalized_cwh, position = normalize_box_cwh(resized_hw, num_grid, box_cwh)
+		resized_box_xy = utils.resize_box_xy(orig_hw, resized_hw, box_xy)
+		box_cwh = utils.xy_to_cwh(resized_box_xy)
+		normalized_cwh, position = utils.normalize_box_cwh(resized_hw, num_grid, box_cwh)
 		row, col = position
 		xc, yc, w, h = normalized_cwh
 		if y[row, col, 0] == 1:
@@ -52,7 +54,7 @@ for i in trange(900):
 X = np.array(X)
 Y = np.array(Y)
 
-permutation = np.random.permutation(900)
+permutation = np.random.permutation(dataset_size)
 train = permutation[0:train_size]
 val = permutation[train_size : train_size + val_size]
 test = permutation[train_size + val_size:train_size + val_size + test_size]

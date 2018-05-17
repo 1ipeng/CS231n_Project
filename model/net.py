@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 class darknet(nn.Module):
-    def __init__(self):
+    def __init__(self, params):
         super().__init__()
         net_cfg = [
             {'name':'conv_1', 'out_channels':32, 'kernel_size':3, 'stride':1, 'use_batchnorm': True},
@@ -35,9 +35,8 @@ class darknet(nn.Module):
             {'name':'conv_17', 'out_channels':512, 'kernel_size':1, 'stride':1, 'use_batchnorm': True},
             {'name':'conv_18', 'out_channels':1024, 'kernel_size':3, 'stride':1, 'use_batchnorm': True},
 
-            {'name':'conv_19', 'out_channels':5, 'kernel_size':1, 'stride':1, 'use_batchnorm': False},
+            {'name':'conv_19', 'out_channels': 5 * params.B, 'kernel_size':1, 'stride':1, 'use_batchnorm': False},
         ]
-
         self.conv = torch.nn.Sequential()
 
         out_channels = 3
@@ -109,6 +108,7 @@ def loss_baseline(y_pred, y,l_coord, l_noobj):
     # y_pred (batch_size, num_grid, num_grid, 5)
     batch_size, num_grid, _, _ = y.shape
 
+
     # Grid cell containing object or not
     obj_mask = (y[:, :, :, 0] == 1)
     noobj_mask = (y[:, :, :, 0] == 0)
@@ -137,67 +137,115 @@ def loss_baseline(y_pred, y,l_coord, l_noobj):
         obj_loss_wh = torch.sum((torch.sqrt(obj_y_pred_wh) - torch.sqrt(obj_y_wh))**2)
 
     loss = l_coord * obj_loss_xy + l_coord * obj_loss_wh + obj_loss_pc + l_noobj * noobj_loss_pc
+
+    # print('baseline:',noobj_loss_pc, obj_loss_xy, obj_loss_wh, obj_loss_pc)
     return loss
 
-# class yolo_v1_loss(nn.Module):
-#     def __init__(self, l_coord, l_noobj):
-#         self.l_coord = l_coord
-#         self.l_noobj = l_noobj
+def compute_iou(boxes_pred, boxes_true):
+    '''
+    Compute intersection over union of two set of boxes
+    Args:
+      boxes_pred: shape (num_objects, B, 4)
+      boxes_true: shape (num_objects, 1, 4)
+    Return:
+      iou: shape (num_objects, B)
+    '''
 
-#     def compute_iou(self, box1, box2):
-#         '''Compute the intersection over union of two set of boxes
-#         Input:
-#            box1: (N, 4)
-#            box2: (M, 4)
-#         Return:
-#             iou:(N, M)
-#         '''
-#         N = box1.shape[0]
-#         M = box2.shape[0]
+    num_objects = boxes_pred.size(0)
+    B = boxes_pred.size(1)
 
-#         lt = torch.max(
-#             box1[:,:2].unsqueeze(1).expand(N1,M,2),  # [N,2] -> [N,1,2] -> [N,M,2]
-#             box2[:,:2].unsqueeze(0).expand(N1,M,2),  # [M,2] -> [1,M,2] -> [N,M,2]
-#         )
+    lt = torch.max(
+        boxes_pred[:,:,:2],                      # [num_objects, B, 2]
+        boxes_true[:,:,:2].expand(num_objects, B, 2)    # [num_objects, 1, 2] -> (num_objects, B, 2]
+    )
 
-#         rb = torch.min(
-#             box1[:,2:].unsqueeze(1).expand(N1,M,2),  # [N,2] -> [N,1,2] -> [N,M,2]
-#             box2[:,2:].unsqueeze(0).expand(N1,M,2),  # [M,2] -> [1,M,2] -> [N,M,2]
-#         )
+    rb = torch.min(
+        boxes_pred[:,:,2:],                      # [num_objects, B, 2]
+        boxes_true[:,:,2:].expand(num_objects, B, 2)    # [num_objects, 1, 2] -> (num_objects, B, 2]
+    )
 
-#         wh = rb - lt  # [N,M,2]
-#         wh[wh<0] = 0  # clip at 0
-#         inter = wh[:,:,0] * wh[:,:,1]  # [N,M]
+    wh = rb - lt # width and height => [num_objects, B, 2]
+    wh[wh<0] = 0 # if no intersection, set to zero
+    inter = wh[:,:,0] * wh[:,:,1] # [num_objects, B]
 
-#         area1 = (box1[:,2]-box1[:,0]) * (box1[:,3]-box1[:,1])  # [N,]
-#         area2 = (box2[:,2]-box2[:,0]) * (box2[:,3]-box2[:,1])  # [M,]
-#         area1 = area1.unsqueeze(1).expand_as(inter)  # [N,] -> [N,1] -> [N,M]
-#         area2 = area2.unsqueeze(0).expand_as(inter)  # [M,] -> [1,M] -> [N,M]
+    # [num_objects, B, 1] * [num_objects, B, 1] -> [num_objects, B]
+    area1 = (boxes_pred[:,:,2]-boxes_pred[:,:,0]) * (boxes_pred[:,:,2]-boxes_pred[:,:,0]) 
+    
+    # [num_objects, 1, 1] * [num_objects, 1, 1] -> [num_objects, 1] -> [num_objects, B]
+    area2 = ((boxes_true[:,:,2]-boxes_true[:,:,0]) * (boxes_true[:,:,2]-boxes_true[:,:,0])).expand(num_objects, B)
 
-#         iou = inter / (area1 + area2 - inter)
-#         return iou
+    iou = inter / (area1 + area2 - inter) # [num_objects, B]
+    
+    return iou
 
-#     def forward(self, y_pred, y):
-#         # y (batch_size, num_grid, num_grid, 5)
-#         # y_pred (batch_size, num_grid, num_grid, B*5)
-#         batch_size, num_grid, _, _ = y.shape
-#         B = y_pred.shape[3] / 5
+def yolo_v1_loss(y_pred, y_true, l_coord, l_noobj):
+    # y_pred (batch_size, num_grid, num_grid, B * 5)
+    # y_true (batch_size, num_grid, num_grid, 5)
+    batch_size, num_grid, _, _ = y_true.shape
+    B = y_pred.shape[3] / 5
 
-#         # Grid cell containing object or not
-#         obj_mask = (y_reshape[:, :, :, :, 0] == 1)
-#         noobj_mask = (y_reshape[:, :, :, :, 0] == 0)
+    # add one dimension to seperate B bounding boxes of y_pred
+    y_true = y_true.unsqueeze(-1).view(batch_size, num_grid, num_grid, 1, 5)
+    y_pred = y_pred.unsqueeze(-1).view(batch_size, num_grid, num_grid, B, 5) 
 
-#         # Compute loss for grid cells containing no object
-#         noobj_y_pred_pc = y_pred[noobj_mask, 0]
-#         noobj_y_pc = y[noobj_mask, 0]
-#         noobj_loss = torch.sum((noobj_y_pred_pc)**2)
+    # mask for grid cells with object and wihout object 
+    obj_mask = (y_true[:, :, :, 0, 0] == 1) 
+    noobj_mask = (y_true[:, :, :, 0, 0] == 0)
 
-#         # Reshape y, y_pred
-#         y_reshape = y.view(batch_size, num_grid, num_grid, B, 5)
-#         y_pred_reshape = y_pred.view(batch_size, num_grid, num_grid, 1, 5)
-        
-# test
+    obj_loss_xy = 0
+    obj_loss_wh = 0
+    obj_loss_pc = 0
+    noobj_loss_pc = 0
+    
+    # Compute loss for boxes in grid cells containing no object
+    if len(y_pred[noobj_mask]) != 0:
+        noobj_y_pred_pc = y_pred[noobj_mask][:, :, 0]
+        noobj_loss_pc = torch.sum((noobj_y_pred_pc)**2)
+
+    # Compute loss for boxes in grid cells containing object
+    if len(y_pred[obj_mask]) != 0:
+        # boxes coords (xc, yc, w, h) in grid cells with object
+        obj_boxes_true = y_true[obj_mask][:, :, 1:5]  #(num_objects, 1, 4)
+        obj_boxes_pred = y_pred[obj_mask][:, :, 1:5]  #(num_objects, B, 4)
+        obj_pred_pc = y_pred[obj_mask][:, :, 0]  #(num_objects, B)
+
+        # Compute iou between true boxes and B predicted boxes  
+        iou = compute_iou(obj_boxes_pred, obj_boxes_true)  #(num_objects, B)
+
+        # Find the target boxes responsible for prediction (boxes with max iou)
+        max_iou, max_iou_indices = torch.max(iou, dim=1)
+
+        is_target = torch.zeros(iou.shape)
+        is_target[range(iou.shape[0]), max_iou_indices] = 1
+        target_mask = (is_target == 1)
+        not_target_mask = (is_target == 0)
+        # target_mask = (iou == max_iou)
+        # not_target_mask = (iou != max_iou)
+
+        # The loss for boxes not responsible for prediction
+        not_target_pred_pc = obj_pred_pc[not_target_mask]
+        noobj_loss_pc += torch.sum((not_target_pred_pc)**2)
+
+        # The loss for boxes responsible for prediction
+        target_pred_pc = obj_pred_pc[target_mask]
+        obj_loss_pc = torch.sum((target_pred_pc - 1)**2)
+
+        target_pred_xy = obj_boxes_pred[target_mask][:, 0:2]  #(num_objects, 2)
+        target_true_xy = obj_boxes_true[:, 0, 0:2]
+
+        obj_loss_xy = torch.sum((target_pred_xy - target_true_xy)**2)
+
+        target_pred_wh = obj_boxes_pred[target_mask][:, 2:4]
+        target_true_wh = obj_boxes_true[:, 0, 2:4]
+        obj_loss_wh = torch.sum((torch.sqrt(target_pred_wh) - torch.sqrt(target_true_wh))**2)
+
+    loss = l_coord * obj_loss_xy + l_coord * obj_loss_wh + obj_loss_pc + l_noobj * noobj_loss_pc
+
+    # print('v1:',noobj_loss_pc, obj_loss_xy, obj_loss_wh, obj_loss_pc)
+    return loss
+
 '''
+# Test
 model = darknet()
 weights_dir = './darknet19_weights.npz'
 x = torch.zeros((1, 3, 640, 640))

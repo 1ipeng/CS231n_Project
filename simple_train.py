@@ -1,18 +1,19 @@
-from net import *
+from model.net import *
 import torch.nn as nn
 import torch.optim as optim
 import torch
-from data_loader import fetch_dataloader
-from util import draw_boxes_output, Params
+from model.data_loader import fetch_dataloader
+import utils
+import matplotlib.pyplot as plt
 
-params = Params('./experiment/params.json')
+params = utils.Params('./experiment/params.json')
 data_dir = './data/tiny_GTSDB/'
 loader_train = fetch_dataloader(['train'], data_dir, params)['train']
 weights_dir = './darknet19_weights.npz'
 device = torch.device('cpu')
 dtype = torch.float32
 
-def simple_train(model, optimizer, epochs=10):
+def simple_train(model, optimizer, loss_fn, epochs=10):
     model = model.to(device=device)  # move the model parameters to CPU/GPU
     for e in range(epochs):
         for t, (x, y) in enumerate(loader_train):
@@ -20,7 +21,8 @@ def simple_train(model, optimizer, epochs=10):
             x = x.to(device=device, dtype=dtype)  # move to device, e.g. GPU
             y = y.to(device=device, dtype=dtype)
             y_pred = model(x)
-            loss = loss_baseline(y_pred, y, 5, 0.5)
+
+            loss = loss_fn(y_pred, y, params.l_coord, params.l_noobj)
             # Zero out all of the gradients for the variables which the optimizer
             # will update.
             optimizer.zero_grad()
@@ -45,14 +47,14 @@ def simple_predict(model):
         np.save('./data/tiny_GTSDB/Y_pred', y_pred)
         
         plt.figure()
-        draw_boxes_output(x[0], y_pred[0])
+        utils.draw_boxes_output(x[0], y_pred[0])
         plt.figure()
-        draw_boxes_output(x[0], y[0])
+        utils.draw_boxes_output(x[0], y[0])
         plt.show()
         break
 
-model = darknet()
+model = darknet(params)
 # model.load_weights(weights_dir, 18)
 optimizer = optim.Adam(model.parameters(), lr=params.learning_rate)
-simple_train(model, optimizer, params.num_epochs)
+simple_train(model, optimizer, yolo_v1_loss, params.num_epochs)
 simple_predict(model)

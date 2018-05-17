@@ -10,26 +10,20 @@ def compute_iou(boxes_pred, boxes_true):
       boxes_true: shape (num_objects, 1, 4)
     Return:
       iou: shape (num_objects, B)
-
-    说明:
-    每个objects会有B个预测的boxes, 而实际只有一个box，所以boxes_pred的第二个dim是B，而boxes_true第二个dim是1
-    每个box有四个坐标(x1, y1, x2, y2)，分别是左上角和右下角的坐标，所以最后一个dim是4
-
-    返回：每个object的B个pred_box分别和该object的true_box计算iou，得到B个iou。
-    要求：(1)vectorize, 不用for loop. (2)用torch，不用numpy
     '''
 
     num_objects = boxes_pred.size(0)
     B = boxes_pred.size(1)
 
     lt = torch.max(
-        boxes_pred[:,:,:2]                      # [num_objects, B, 2]
-        boxes_true.expand(num_objects, B, 2)    # [num_objects, 1, 2] -> (num_objects, B, 2]
+        boxes_pred[:,:,:2],                      # [num_objects, B, 2]
+        boxes_true[:,:,:2].expand(num_objects, B, 2)    # [num_objects, 1, 2] -> (num_objects, B, 2]
     )
 
+
     rb = torch.min(
-        boxes_pred[:,:,2:]                      # [num_objects, B, 2]
-        boxes_true.expand(num_objects, B, 2)    # [num_objects, 1, 2] -> (num_objects, B, 2]
+        boxes_pred[:,:,2:],                      # [num_objects, B, 2]
+        boxes_true[:,:,2:].expand(num_objects, B, 2)    # [num_objects, 1, 2] -> (num_objects, B, 2]
     )
 
     wh = rb - lt # width and height => [num_objects, B, 2]
@@ -43,9 +37,70 @@ def compute_iou(boxes_pred, boxes_true):
     area2 = ((boxes_true[:,:,2]-boxes_true[:,:,0]) * (boxes_true[:,:,2]-boxes_true[:,:,0])).expand(num_objects, B)
 
     iou = inter / (area1 + area2 - inter) # [num_objects, B]
-
+    
     return iou
     
+def iou(box1, box2):
+    """Implement the intersection over union (IoU) between box1 and box2
+    
+    Arguments:
+    box1 -- first box, list object with coordinates (x1, y1, x2, y2)
+    box2 -- second box, list object with coordinates (x1, y1, x2, y2)
+    """
+
+    # Calculate the (y1, x1, y2, x2) coordinates of the intersection of box1 and box2. Calculate its Area.
+    ### START CODE HERE ### (≈ 5 lines)
+    xi1 = max(box1[0], box2[0])
+    yi1 = max(box1[1], box2[1])
+    xi2 = min(box1[2], box2[2])
+    yi2 = min(box1[3], box2[3])
+    inter_area = max(xi2 - xi1, 0) * max(yi2 - yi1, 0)
+    ### END CODE HERE ###    
+
+    # Calculate the Union area by using Formula: Union(A,B) = A + B - Inter(A,B)
+    ### START CODE HERE ### (≈ 3 lines)
+    box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    union_area = box1_area + box2_area - inter_area
+    ### END CODE HERE ###
+    
+    # compute the IoU
+    ### START CODE HERE ### (≈ 1 line)
+    iou = inter_area / union_area
+    ### END CODE HERE ###
+    
+    return iou
+
+# box1 = np.array([2., 1., 4., 3.])
+# box2 = np.array([1., 2., 3., 4.])
+box1 = np.array([2., 1., 4., 3.]).reshape(1,1,4)
+box2_1 = np.array([1., 2., 3., 4.])
+box2_2 = np.array([2., 1., 4., 3.])
+box2_3 = np.array([0., 0., 1., 1.])
+boxsum = np.array([box2_1, box2_2, box2_3]).reshape(1,3,4)
+boxsum = np.array([boxsum,boxsum,boxsum,boxsum,boxsum]).reshape(5,3,4)
+box1 = np.array([box1,box1,box1,box1,box1]).reshape(5,1,4)
+
+num_objects = 5
+B = 3
+
+# boxes_pred = np.random.rand(num_objects, B, 4)
+# boxes_true = np.random.rand(num_objects, 1, 4)
+
+boxes_pred = boxsum
+boxes_true = box1
+
+result = np.zeros((num_objects, B))
+
+for i in range(num_objects):
+    for j in range(B):
+        result[i, j] = iou(boxes_pred[i, j, :], boxes_true[i, 0, :])
+
+boxes_pred = torch.from_numpy(boxes_pred)
+boxes_true = torch.from_numpy(boxes_true)
+result2 = compute_iou(boxes_pred, boxes_true).data.numpy()
+print((result2 == result).all())
+print(result, result2)
 
 
 def compute_iou_reference(self, box1, box2):
