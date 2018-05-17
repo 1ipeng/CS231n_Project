@@ -6,12 +6,16 @@ from model.data_loader import fetch_dataloader
 import utils
 import matplotlib.pyplot as plt
 
+print("Start training")
+
 params = utils.Params('./experiment/params.json')
-params.cuda = torch.cuda.is_available()
+# params.cuda = torch.cuda.is_available()
 if params.cuda:
     device = torch.device('cuda')
+    print('device:cuda')
 else:
     device = torch.device('cpu')
+    print('device:cpu')
 
 data_dir = './data/GTSDB/'
 data_loader = fetch_dataloader(['train', 'val', 'test'], data_dir, params)
