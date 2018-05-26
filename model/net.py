@@ -179,20 +179,28 @@ def compute_iou(boxes_pred, boxes_true):
     return iou
 
 def yolo_v1_loss(y_pred, y_true, params):
-    # y_pred (batch_size, num_grid, num_grid, B * 5)
-    # y_true (batch_size, num_grid, num_grid, 5)
+    # y_pred (batch_size, num_grid, num_grid, 5 * B + C)
+    # y_true (batch_size, num_grid, num_grid, 5 + C)
     l_coord = params.l_coord
     l_noobj = params.l_noobj
     batch_size, num_grid, _, _ = y_true.shape
-    B = y_pred.shape[3] / 5
+    B = params.B
+    C = params.C
+
+    y_pred_boxes = y_pred[:, :, :, 0:5*B]
+    y_true_boxes = y_true[:, :, :, 0:5]
+    y_pred_classes = y_pred[:, :, :, 5*B:]
+    y_true_classes = y_true[:, :, :, 5:]
 
     # add one dimension to seperate B bounding boxes of y_pred
-    y_true = y_true.unsqueeze(-1).view(batch_size, num_grid, num_grid, 1, 5)
-    y_pred = y_pred.unsqueeze(-1).view(batch_size, num_grid, num_grid, B, 5) 
+    y_pred_boxes = y_pred_boxes.unsqueeze(-1).view(batch_size, num_grid, num_grid, B, 5) 
+    y_true_boxes = y_true_boxes.unsqueeze(-1).view(batch_size, num_grid, num_grid, 1, 5)
 
     # mask for grid cells with object and wihout object 
-    obj_mask = (y_true[:, :, :, 0, 0] == 1) 
-    noobj_mask = (y_true[:, :, :, 0, 0] == 0)
+    obj_mask = (y_true_boxes[:, :, :, 0, 0] == 1) 
+    noobj_mask = (y_true_boxes[:, :, :, 0, 0] == 0)
+
+    
 
     obj_loss_xy = 0
     obj_loss_wh = 0
@@ -201,16 +209,16 @@ def yolo_v1_loss(y_pred, y_true, params):
     avg_iou = 0
 
     # Compute loss for boxes in grid cells containing no object
-    if len(y_pred[noobj_mask]) != 0:
-        noobj_y_pred_pc = y_pred[noobj_mask][:, :, 0]
-        noobj_loss_pc = torch.sum((noobj_y_pred_pc)**2)
+    if len(y_pred_boxes[noobj_mask]) != 0:
+        noobj_y_pred_boxes_pc = y_pred_boxes[noobj_mask][:, :, 0]
+        noobj_loss_pc = torch.sum((noobj_y_pred_boxes_pc)**2)
 
     # Compute loss for boxes in grid cells containing object
-    if len(y_pred[obj_mask]) != 0:
+    if len(y_pred_boxes[obj_mask]) != 0:
         # boxes coords (xc, yc, w, h) in grid cells with object
-        obj_boxes_true = y_true[obj_mask][:, :, 1:5]  #(num_objects, 1, 4)
-        obj_boxes_pred = y_pred[obj_mask][:, :, 1:5]  #(num_objects, B, 4)
-        obj_pred_pc = y_pred[obj_mask][:, :, 0]  #(num_objects, B)
+        obj_boxes_true = y_true_boxes[obj_mask][:, :, 1:5]  #(num_objects, 1, 4)
+        obj_boxes_pred = y_pred_boxes[obj_mask][:, :, 1:5]  #(num_objects, B, 4)
+        obj_pred_pc = y_pred_boxes[obj_mask][:, :, 0]  #(num_objects, B)
         num_objects = obj_boxes_true.shape[0]
 
         # Compute iou between true boxes and B predicted boxes  

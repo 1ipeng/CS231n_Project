@@ -8,5 +8,7 @@
     "l_coord": 5,
     "l_noobj": 0.5,
     "B": 2,
-    "image_resize": 224
+    "C": 0,
+    "image_resize": 224,
+    "capsule_input": 32
 }

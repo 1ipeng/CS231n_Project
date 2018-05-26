@@ -5,16 +5,18 @@ import torch
 import model.data_loader as data_loader
 import model.net as net
 import torch.optim as optim
-import train
-import predict
+import train_fn
+import predict_fn
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', default='data/GTSDB/', help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='experiment/', help="Directory containing params.json")
-parser.add_argument('--restore_file', default=None, help="last or best")
+parser.add_argument('--restore', default=None, help="last or best")
 parser.add_argument("--train", help="train model", action="store_true")
 parser.add_argument("--predict", help="predict bouding box", action="store_true")
-parser.add_argument("--filepath", default=None, help="predicted image filepath")
+parser.add_argument("--image", default=None, help="predicted image path")
+parser.add_argument("--predict_batch", help="predict batch images", action="store_true")
+parser.add_argument("--image_batch", help="batch images")
 
 # Load the parameters from json file
 args = parser.parse_args()
@@ -60,13 +62,21 @@ if args.train:
 
 	# Train the model
 	print("Starting training for {} epoch(s)".format(params.num_epochs))
-	train.train_and_evaluate(model, train_data, val_data, optimizer, loss_fn, params, args.model_dir,
-	                   args.restore_file)
+	train_fn.train_and_evaluate(model, train_data, val_data, optimizer, loss_fn, params, args.model_dir,
+	                   args.restore)
 
 if args.predict:
-	if args.filepath == None:
+	if args.image == None:
 		print("Missing predicted image")
-	elif args.restore_file == None:
+	elif args.restore == None:
 		print("Missing weight file")
 	else:
-		predict.predict(model, args.filepath, params, args.model_dir, args.restore_file)
+		predict_fn.predict(model, args.image, params, args.model_dir, args.restore)
+
+if args.predict_batch:
+	if args.image_batch == None:
+		print("Missing predicted image")
+	elif args.restore == None:
+		print("Missing weight file")
+	else:
+		predict_fn.predict_batch(model, args.image_batch, params, args.model_dir, args.restore, './result')

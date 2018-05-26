@@ -5,6 +5,7 @@ import json
 import os
 import torch
 import shutil
+from PIL import Image
 
 def draw_boxes_xy(image, boxes_xy):
 	# boxes_xy: shape (N, 4), [[x1, y1, x2, y2], ...] 
@@ -20,6 +21,32 @@ def draw_boxes_xy(image, boxes_xy):
 		ax.add_patch(box)
 
 def draw_boxes_output(image, y):
+	boxes_xy = pred_to_boxes(image, y)
+	draw_boxes_xy(image, boxes_xy)
+
+def crop_boxes(image, boxes, save_path):
+	num_boxes = boxes.shape[0]
+	for i in range(num_boxes):
+		cropped = image.crop(boxes[i])
+		path = save_path + '_' + str(i) + '.jpg'
+		cropped.save(path)
+
+def pred_to_crop(image, y, params):
+	boxes = pred_to_boxes(image, y)
+	num_boxes = boxes.shape[0]
+	crops = []
+	image = Image.fromarray(image)
+
+	for i in range(num_boxes):
+		crop = image.crop(boxes[i])
+		crop = crop.resize((params.capsule_input, params.capsule_input))
+		crop = np.asarray(crop)
+		crops.append(crop)
+
+	crops = np.array(crops)
+	return crops
+
+def pred_to_boxes(image, y):
 	# y: shape (num_grid, num_grid, 5 * B)
 	num_grid = y.shape[0]
 	B = int(y.shape[2] / 5)
@@ -36,7 +63,7 @@ def draw_boxes_output(image, y):
 		positon = indices[i, 0:2]
 		box_cwh = denormalize_box_cwh(image_hw, num_grid, boxes_cwh[i], positon)
 		boxes_xy[i] = cwh_to_xy(box_cwh)
-	draw_boxes_xy(image, boxes_xy)
+	return boxes_xy
 
 def xy_to_cwh(box_xy):
 	# box_xy [x1, y1, x2, y2]
