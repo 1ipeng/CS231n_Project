@@ -89,30 +89,6 @@ def cwh_to_xy(box_cwh):
 	xy = [x1, y1, x2, y2]
 	return xy
 
-def xy_to_cwh_vectorize(boxes_xy):
-	# boxes_xy: shape (N, 4), [[x1, y1, x2, y2], ...]
-	# Given top left point and right bottom point coordinates
-	# Compute center coordinates, height and weight
-	# Return boxes_cwh: shape (N, 4) [[xc, yc, w, h], ...]
-	boxes_cwh = np.zeros_like(boxes_xy)
-	boxes_cwh[:, 0] = (boxes_xy[:, 0] + boxes_xy[:, 2]) / 2
-	boxes_cwh[:, 1] = (boxes_xy[:, 1] + boxes_xy[:, 3]) / 2
-	boxes_cwh[:, 2] = boxes_xy[:, 2] - boxes_xy[:, 0]
-	boxes_cwh[:, 3] = boxes_xy[:, 3] - boxes_xy[:, 1]
-	return boxes_cwh
-
-def cwh_to_xy_vectorize(boxes_cwh):
-	# boxes_cwh: shape (N, 4) [[xc, yc, w, h], ...]
-	# Given top left point and right bottom point coordinates
-	# Compute center coordinates, height and weight
-	# boxes_xy: shape (N, 4), [[x1, y1, x2, y2], ...]
-	boxes_xy = zeros_like(boxes_cwh)
-	boxes_xy[:, 0] = boxes_cwh[:, 0] - boxes_cwh[:, 2] / 2
-	boxes_xy[:, 1] = boxes_cwh[:, 1] - boxes_cwh[:, 3] / 2
-	boxes_xy[:, 2] = boxes_cwh[:, 0] + boxes_cwh[:, 2] / 2
-	boxes_xy[:, 3] = boxes_cwh[:, 1] + boxes_cwh[:, 3] / 2
-	return boxes_xy
-
 def resize_box_xy(orig_hw, resized_hw, box_xy):
 	# Resize box
 	# orig_h, orig_w: orginal image size
