@@ -7,3 +7,5 @@ data/raw_GTSDB/gt.txt
 data/raw_GTSDB/ReadMe.txt
 *.icloud
 *.zip
+data/GTSRB-2/Final_Training/Images/00040/GT-00040.csv
+*.csv
