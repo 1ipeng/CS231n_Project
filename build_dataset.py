@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 data_dir = './data/raw_GTSDB/'
 output_dir = './data/GTSDB/'
+json_path = './experiment/params.json'
 image_resize = 224
 num_grid = 7
 
@@ -17,10 +18,11 @@ train_size = 700
 val_size = 100
 test_size = 100
 
-
+params = utils.Params(json_path)
 raw_data = np.loadtxt(data_dir + 'gt.txt', delimiter = ';', dtype= str)
 image_names = raw_data[:, 0]
 box_coords = raw_data[:, 1:5].astype(float)
+classes = raw_data[:, 5].astype(int)
 
 X = []
 Y = []
@@ -34,7 +36,7 @@ for i in trange(dataset_size):
 	X.append(resized_image)
 
 	# Load bounding boxes
-	y = np.zeros((num_grid, num_grid, 5))
+	y = np.zeros((num_grid, num_grid, 5 + params.num_classes))
 	orig_hw = image.shape[0:2]
 	resized_hw = resized_image.shape[0:2]
 	indices = np.argwhere(image_names == name).reshape(-1,)
@@ -46,9 +48,17 @@ for i in trange(dataset_size):
 		normalized_cwh, position = utils.normalize_box_cwh(resized_hw, num_grid, box_cwh)
 		row, col = position
 		xc, yc, w, h = normalized_cwh
+		
+		# skip if the grid cell has object
 		if y[row, col, 0] == 1:
 			conflict_count[i] += 1
-		y[row, col, :] = [1, xc, yc, w, h]
+			continue
+
+		y[row, col, 0:5] = [1, xc, yc, w, h]
+		if params.num_classes != 0:
+			c = classes[index]
+			y[row, col, 5 + c] = 1
+
 	Y.append(y)
 
 X = np.array(X)
@@ -70,6 +80,7 @@ Y_test = Y[test]
 if not os.path.exists(output_dir):
 	os.mkdir(output_dir)
 
+# save dataset
 np.save(output_dir + 'X_train', X_train)
 np.save(output_dir + 'Y_train', Y_train)
 np.save(output_dir + 'X_val', X_val)
@@ -77,13 +88,19 @@ np.save(output_dir + 'Y_val', Y_val)
 np.save(output_dir + 'X_test', X_test)
 np.save(output_dir + 'Y_test', Y_test)
 
+# save confilct info
 train_conflict = conflict_count[train]
 train_conflict_images = train[train_conflict == 1]
 train_conflict_indices = np.argwhere(train_conflict == 1)
-
 np.savetxt(output_dir + 'train_conflict_indices.txt', train_conflict_indices, fmt='%.18g')
 np.savetxt(output_dir + 'train_images.txt', train, fmt='%.18g')
 np.savetxt(output_dir + 'train_conflict_images.txt', train_conflict_images, fmt='%.18g')
+
+# Get names for each class
+class_names = np.loadtxt(data_dir + 'Readme.txt', skiprows=39, delimiter = '\n', dtype = str)
+for i, name in enumerate(class_names):
+	class_names[i] = name.split('=')[1]
+np.savetxt(output_dir + 'class_names.txt', class_names, delimiter='\n', fmt='%s')
 
 print('Build dataset done.')
 print('Train shape:', X_train.shape, Y_train.shape)
